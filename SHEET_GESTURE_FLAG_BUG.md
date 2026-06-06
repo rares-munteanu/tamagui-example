@@ -2,7 +2,7 @@
 
 This repo reproduces a bug in `tamagui@2.1.0`: the `sheet` option of `setupGestureHandler` has no effect. Whether the Sheet uses react-native-gesture-handler (RNGH) is decided only by `pressEvents`. The `sheet` value is written to a global that nothing reads.
 
-The proof runs at startup in [`src/app/_layout.tsx`](src/app/_layout.tsx) and logs to the console.
+It runs at startup in [`src/app/_layout.tsx`](src/app/_layout.tsx) and logs to the console.
 
 ## Reproduction
 
@@ -32,18 +32,15 @@ dead global          = true
 reverse: gate sees   = true
 ```
 
-## How to read this
+## What the output shows
 
-- `config stored` keeps `sheet: true`, so the option was accepted (not a typo or a dropped input).
-- `Sheet RNGH gate sees` is `false`. This is the value every Sheet RNGH gate reads, so the Sheet uses `PanResponder`, even though `sheet: true` was requested.
-- `dead global` is `true`, so `sheet: true` was written into `__tamagui_sheet_gesture_state__`, a key nothing reads.
-- `reverse: gate sees` is `true` with `sheet: false`, so the Sheet keeps RNGH even when `sheet: false` was requested.
+`config stored` keeps `sheet: true`, so the option was accepted. But `isGestureHandlerEnabled()`, the flag every Sheet RNGH gate reads, comes back `false`, so the Sheet falls back to `PanResponder`. The `sheet: true` value did get written, into `__tamagui_sheet_gesture_state__`, which nothing reads. The reverse run (`sheet: false`) returns `true`, so `sheet` is ignored in both directions.
 
 ## Placement note
 
 The setup call must run before the first render. If it runs after `<TamaguiProvider>` mounts, Tamagui freezes the `pressEvents` value and prints `[Tamagui] Ignored setupGestureHandler() because gesture handler press events were already enabled when TamaguiProvider mounted. Configure gesture handler mode before the first render.` Running it in the root layout module (as above) avoids this. The `sheet` value is never frozen, because nothing consumes it.
 
-`isGestureHandlerEnabled` from `@tamagui/sheet/setup-gesture-handler` is the sheet package's own exported function. Its body is the same one line the Sheet's internal gates use, so its return value is exactly what those gates evaluate.
+`isGestureHandlerEnabled` (from `@tamagui/sheet/setup-gesture-handler`) is the sheet package's own export; its body is the same `getGestureHandler().isEnabled` the internal gates call, so it returns exactly what they see.
 
 ## Root cause (from the published 2.1.0 source)
 
@@ -72,7 +69,7 @@ g.__tamagui_sheet_gesture_state__ = {
 };
 ```
 
-3. `__tamagui_sheet_gesture_state__` is never read. A search across the whole installed `@tamagui` tree (all packages, all build outputs) finds 5 references, and all 5 are the same write (the `src` file plus its 4 compiled bundles). There are 0 reads:
+3. `__tamagui_sheet_gesture_state__` is never read. Grepping `@tamagui` for it returns 5 hits, all the same write (source plus its four build outputs) and zero reads:
 
 ```
 @tamagui/native/src/setup-gesture-handler.ts:79              g.__tamagui_sheet_gesture_state__ = {
@@ -102,9 +99,9 @@ export function isGestureHandlerEnabled(): boolean {
 
 ## Suggested fix (direction only)
 
-Make the Sheet's gate use the `sheet` value instead of the press value. The main `set()` already registers `Gesture`, `GestureDetector` and `RootView` even when `enabled` is `false` (lines 70-76), so the Sheet can use RNGH on its own. Two options:
+Make the Sheet's gate use the `sheet` value instead of the press value. The main `set()` already registers `Gesture`, `GestureDetector` and `RootView` even when `enabled` is `false` (lines 70-76), so the Sheet could use RNGH while presses are off. Two options:
 
 - Have the Sheet's `isGestureHandlerEnabled()` (and the three gates) read `getGestureHandlerConfig().sheet` from `@tamagui/native/setup-gesture-handler`, instead of `getGestureHandler().isEnabled`; or
 - Add a separate `sheetEnabled` value on `getGestureHandler()` from the `sheet` flag, and point the three gates at it.
 
-Either one keeps presses controlled by `pressEvents` and lets `sheet` control the Sheet on its own, which is the documented behavior. The dead `__tamagui_sheet_gesture_state__` write can then be removed or wired up.
+Either one keeps presses on `pressEvents` and lets `sheet` decide the Sheet independently, which is the documented behavior. The dead `__tamagui_sheet_gesture_state__` write can then be removed or wired up.
