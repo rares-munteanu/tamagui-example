@@ -1,0 +1,27 @@
+diff --git a/node_modules/@tamagui/sheet/dist/cjs/gestureState.native.js b/node_modules/@tamagui/sheet/dist/cjs/gestureState.native.js
+index 4f60296..a7e8bc7 100644
+--- a/node_modules/@tamagui/sheet/dist/cjs/gestureState.native.js
++++ b/node_modules/@tamagui/sheet/dist/cjs/gestureState.native.js
+@@ -32,6 +32,9 @@ __export(gestureState_exports, {
+ module.exports = __toCommonJS(gestureState_exports);
+ var import_native = require("@tamagui/native");
+ function isGestureHandlerEnabled() {
++  // patched: honor the per-sheet RNGH flag so the Sheet keeps RNGH while presses use RN's responder system. Tamagui writes __tamagui_sheet_gesture_state__ but never reads it. Remove when upstream wires the `sheet` option.
++  const s = globalThis.__tamagui_sheet_gesture_state__;
++  if (s && typeof s.enabled === "boolean") return s.enabled;
+   return (0, import_native.getGestureHandler)().isEnabled;
+ }
+ function getGestureHandlerState() {
+diff --git a/node_modules/@tamagui/sheet/dist/esm/gestureState.native.js b/node_modules/@tamagui/sheet/dist/esm/gestureState.native.js
+index 6070fcb..75d35be 100644
+--- a/node_modules/@tamagui/sheet/dist/esm/gestureState.native.js
++++ b/node_modules/@tamagui/sheet/dist/esm/gestureState.native.js
+@@ -1,5 +1,8 @@
+ import { getGestureHandler } from "@tamagui/native";
+ function isGestureHandlerEnabled() {
++  // patched: honor the per-sheet RNGH flag so the Sheet keeps RNGH while presses use RN's responder system. Tamagui writes __tamagui_sheet_gesture_state__ but never reads it. Remove when upstream wires the `sheet` option.
++  const s = globalThis.__tamagui_sheet_gesture_state__;
++  if (s && typeof s.enabled === "boolean") return s.enabled;
+   return getGestureHandler().isEnabled;
+ }
+ function getGestureHandlerState() {
